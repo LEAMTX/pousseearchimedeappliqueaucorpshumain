@@ -19,9 +19,6 @@
 #   - Jambe (x2) : cylindre (faute de longueurs cuisse/mollet dans le CSV actuel)
 #   - Pieds (x2) : cylindre
 #
-# NOTE IMPORTANTE (correction du bug rencontré)
-# - Ton fichier one_person_for_python.csv contient : "leg_L_m"
-# - Il ne contient PAS : "thigh_L_m" ni "calf_L_m"
 # => On adapte donc le modèle jambe au contenu réel du CSV :
 #    une jambe = un cylindre basé sur la circonférence de cuisse (thigh_C_m)
 #    et la longueur totale de jambe (leg_L_m)
@@ -189,7 +186,6 @@ def main():
     V_arm_one = volume_cylinder_from_circumference(C_arm_avg, data["arm_L_m"])
 
     # Jambes : cylindres (x2)
-    # Correction : le CSV contient "leg_L_m" (pas "thigh_L_m" / "calf_L_m")
     V_leg_one = volume_cylinder_from_circumference(data["thigh_C_m"], data["leg_L_m"])
 
     # Pieds : cylindres (x2)

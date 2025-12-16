@@ -47,7 +47,7 @@ Modèle utilisé :
 - Tronc → cylindre  
 - Bras (x2) → cylindre (circonférence moyenne biceps / avant-bras)  
 - Mains (x2) → cylindre  
-- Jambes (x2) → deux cylindres (cuisse + mollet)  
+- Jambes (x2) → deux cylindres
 - Pieds (x2) → cylindre  
 
 Ce découpage permet de limiter les erreurs majeures tout en gardant un modèle simple et compréhensible.
