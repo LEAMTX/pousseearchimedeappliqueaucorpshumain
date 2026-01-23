@@ -1,5 +1,5 @@
- ** Projet – Poussée d’Archimède appliquée au corps humain (ANSUR II) **
-  ** Présentation  **
+### Projet – Poussée d’Archimède appliquée au corps humain (ANSUR II) **
+###  Présentation  
 
 Ce projet illustre le principe de la poussée d’Archimède en l’appliquant à un cas concret : le corps humain.
 
@@ -13,7 +13,7 @@ la tendance du corps à flotter ou bien à couler.
 
 Le but est pédagogique et scientifique : obtenir un modèle cohérent et explicable (ordre de grandeur), et non une précision médicale.
 
-  ** Principe physique  **
+###  Principe physique  
 
 Le projet repose sur le principe d’Archimède, selon lequel tout corps plongé dans un fluide subit une force verticale dirigée vers le haut, égale au poids du fluide déplacé.
 
@@ -33,12 +33,12 @@ V_immergé est le volume de fluide déplacé.
 Dans ce modèle, on suppose que le corps est entièrement immergé, donc
 V_immergé ≈ V_total.
 
-  ** Source :  **
+### Source
 
 ENS Lyon – CultureSciences Physique, Statique des fluides
 https://culturesciencesphysique.ens-lyon.fr/ressource/statique-fluides.xml
 
-  ** Modèle géométrique  **
+###  Modèle géométrique 
 
 Le corps humain étant géométriquement complexe, il est approximé par des solides simples.
 Modèle retenu :
@@ -86,9 +86,9 @@ Afin de garantir la reproductibilité des résultats, on initialise avec set.see
 
 Ce choix ne sert pas à « choisir » un individu particulier, mais à s’assurer que toute exécution du script conduit au même individu, et donc aux mêmes résultats.
 
-Interprétation des résultats
+ ### Interprétation des résultats
 
-Résultats obtenus pour l’individu étudié :
+ ###  Résultats obtenus pour l’individu étudié :
 
 lea@MacBook-Air-de-monthieux projetpousseearchimede % python3 code.py
 --- :) Résultats  :) ---
