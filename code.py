@@ -1,240 +1,150 @@
 # ============================================================
 # Projet : Poussée d’Archimède avec modèle "corps humain"
 # ============================================================
-# Objectif (cas d’usage réel)
-# - Estimer le volume d’un corps humain à partir de mesures anthropométriques (circonférences + longueurs)
-# - En déduire :
-#   1) la poussée d’Archimède dans l’eau
-#   2) le poids apparent dans l’eau (si le corps est maintenu immobile/suspendu)
-#   3) la tendance à flotter ou couler
+# Objectif
+# - Lire 1 personne (CSV) issue d'ANSUR II (préparée par le script R)
+# - Estimer le volume du corps via un modèle géométrique simplifié
+# - Calculer : poids, poussée d'Archimède, poids apparent, verdict flotte/coule
 #
-# ------------------------------------------------------------
-# 1) Modèle géométrique (approximation)
-# ------------------------------------------------------------
-# On approxime des parties du corps par des solides simples :
-#   - Tronc : cylindre
-#   - Tête : sphère
-#   - Bras (x2) : cylindre (circonférence moyenne biceps/avant-bras)
-#   - Mains (x2) : cylindre
-#   - Jambe (x2) : cylindre (faute de longueurs cuisse/mollet dans le CSV actuel)
-#   - Pieds (x2) : cylindre
+# Hypothèses principales
+# - Corps entièrement immergé : V_immergé ≈ V_total
+# - Eau douce : rho ≈ 1000 kg/m³ ; gravité terrestre g ≈ 9.81 m/s²
+# - Sections circulaires pour convertir circonférences -> rayons
 #
-# => On adapte donc le modèle jambe au contenu réel du CSV :
-#    une jambe = un cylindre basé sur la circonférence de cuisse (thigh_C_m)
-#    et la longueur totale de jambe (leg_L_m)
-#
-# ------------------------------------------------------------
-# 2) Données d'entrée (mesures réelles)
-# ------------------------------------------------------------
-# Les valeurs proviennent d’un fichier CSV exporté depuis ANSUR II.
-# Ici, on lit "one_person_for_python.csv" (généré par mon script R).
-#
-# Important :
-# - Les circonférences C sont en mètres (m)
-# - Les longueurs L sont en mètres (m)
-# - La masse m est en kilogrammes (kg)
-#
-# ANSUR II (dataset et description) :
-# - https://www.openlab.psu.edu/ansur2/
-#
-# ------------------------------------------------------------
-# 3) Formules utilisées (avec unités)
-# ------------------------------------------------------------
-# (A) Conversion circonférence -> rayon
-#   C = 2πr  =>  r = C / (2π)
-# - C en m
-# - r en m
-#
-# (B) Volume cylindre :
-#   V = π r² h
-# - r en m
-# - h en m
-# - V en m³
-#
-# (C) Volume sphère :
-#   V = (4/3) π r³
-# - r en m
-# - V en m³
-#
-# (D) Poids :
-#   P = m g
-# - m en kg
-# - g en m/s²
-# - P en N
-#
-# (E) Poussée d’Archimède :
-#   F_A = ρ g V_immergé
-# - ρ : masse volumique du fluide en kg/m³ (eau douce ≈ 1000 kg/m³)
-# - g : accélération de la pesanteur en m/s² (≈ 9,81 m/s² sur Terre)
-# - V_immergé : volume de fluide déplacé en m³
-# - F_A : intensité de la poussée d’Archimède en N
-#
-# Source (Archimède, statique des fluides) :
-# - ENS Lyon – CultureSciences Physique
-#   https://culturesciencesphysique.ens-lyon.fr/ressource/statique-fluides.xml
-#
-# Hypothèse :
-# - corps entièrement immergé => V_immergé ≈ V_total
-#
-# ------------------------------------------------------------
-# 4) Sorties
-# ------------------------------------------------------------
-# - Volume total V_total (m³)
-# - Densité moyenne estimée rho_obj = m / V_total (kg/m³)
-# - Poids P (N)
-# - Poussée F_A (N)
-# - Poids apparent P_app = P - F_A (N)
-# - Masse apparente équivalente m_app = P_app / g (kg)
-# - Verdict : flotte/coule/équilibre
+# Source physique (poussée d’Archimède) :
+# ENS Lyon – CultureSciences Physique : statique des fluides
+# https://culturesciencesphysique.ens-lyon.fr/ressource/statique-fluides.xml
 # ============================================================
 
-import math
 import csv
+import math
+from typing import Dict
 
 
-def circumference_to_radius(C_m: float) -> float:
+def circumference_to_radius(c_m: float) -> float:
     """
-    Convertit une circonférence C (m) en rayon r (m) en supposant une section circulaire.
-
-    Formule :
-        C = 2πr  =>  r = C / (2π)
-
-    Unités :
-        C_m : m
-        retour : m
-
-    Doc :
-      https://www.khanacademy.org/math/geometry/hs-geo-circles/hs-geo-radius-diameter/v/radius-diameter-and-circumference
+    Convertit une circonférence (m) en rayon (m) : r = C / (2π).
+    On valide que C > 0 pour éviter des volumes incohérents.
     """
-    return C_m / (2 * math.pi)
+    if c_m <= 0:
+        raise ValueError(f"Circonférence invalide (<=0): {c_m}")
+    return c_m / (2 * math.pi)
 
 
-def volume_cylinder_from_circumference(C_m: float, L_m: float) -> float:
+def volume_cylinder_from_circumference(c_m: float, l_m: float) -> float:
     """
-    Volume d’un cylindre à partir d’une circonférence C (m) et d’une longueur/hauteur L (m).
-
-    Étapes :
-      1) r = C / (2π)
-      2) V = π r² L
-
-    Unités :
-      C_m : m
-      L_m : m
-      V : m³
+    Volume d'un cylindre : V = π r² L avec r = C / (2π).
+    On valide L > 0 pour éviter des volumes négatifs ou nuls.
     """
-    r = circumference_to_radius(C_m)
-    return math.pi * r * r * L_m
+    if l_m <= 0:
+        raise ValueError(f"Longueur invalide (<=0): {l_m}")
+    r = circumference_to_radius(c_m)
+    return math.pi * r * r * l_m
 
 
-def volume_sphere_from_circumference(C_m: float) -> float:
+def volume_sphere_from_circumference(c_m: float) -> float:
     """
-    Volume d’une sphère à partir d’une circonférence C (m) (ex : tour de tête).
-
-    Étapes :
-      1) r = C / (2π)
-      2) V = (4/3) π r³
-
-    Unités :
-      C_m : m
-      V : m³
+    Volume d'une sphère : V = (4/3) π r³ avec r = C / (2π).
     """
-    r = circumference_to_radius(C_m)
+    r = circumference_to_radius(c_m)
     return (4 / 3) * math.pi * (r ** 3)
 
 
-def read_one_person_csv(path: str) -> dict:
-    """
-    Lit un CSV contenant UNE ligne (une personne) et renvoie {colonne: valeur_float}.
-    Ignore la colonne 'subjectid' si elle est présente.
+import csv
 
-    Doc :
-      https://docs.python.org/3/library/csv.html
+def read_one_person_csv(path):
+    """
+    Lit un CSV contenant une seule personne
+    et renvoie un dictionnaire {nom_colonne: valeur_float}.
     """
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         row = next(reader)
 
-    return {k: float(v) for k, v in row.items() if k != "subjectid"}
+    data = {}
+    for key, value in row.items():
+        if key != "subjectid":
+            data[key] = float(value)
+
+    return data
 
 
-def main():
-    # Constantes physiques (eau douce + gravité terrestre)
-    rho = 1000.0  # kg/m³
+
+def main() -> None:
+    rho = 1000.0  # kg/m³ (eau douce)
     g = 9.81      # m/s²
 
-    # Lecture des mesures (1 personne)
-    data = read_one_person_csv("one_person_for_python.csv")
+    try:
+        data = read_one_person_csv("one_person_for_python.csv")
+    except FileNotFoundError as e:
+        print(f"Erreur: fichier CSV introuvable: {e}")
+        return
+    except (StopIteration, ValueError) as e:
+        print(f"Erreur: CSV invalide: {e}")
+        return
 
-    # Masse (kg)
+    # Vérification des colonnes attendues 
+    required = [
+        "m_kg",
+        "head_C_m",
+        "trunk_C_m", "trunk_H_m",
+        "hand_C_m", "hand_L_m",
+        "biceps_C_m", "forearm_C_m", "arm_L_m",
+        "thigh_C_m", "leg_L_m",
+        "foot_C_m", "foot_L_m",
+    ]
+    missing = [k for k in required if k not in data]
+    if missing:
+        print(f"Erreur: colonnes manquantes dans le CSV: {missing}")
+        return
+
     m_kg = data["m_kg"]
 
-    # ----------------------------
-    # Volumes (m³)
-    # ----------------------------
+    try:
+        # Volumes (m³)
+        v_head = volume_sphere_from_circumference(data["head_C_m"])
+        v_trunk = volume_cylinder_from_circumference(data["trunk_C_m"], data["trunk_H_m"])
 
-    # Tête : sphère
-    V_head = volume_sphere_from_circumference(data["head_C_m"])
+        v_hand_one = volume_cylinder_from_circumference(data["hand_C_m"], data["hand_L_m"])
 
-    # Tronc : cylindre
-    V_trunk = volume_cylinder_from_circumference(data["trunk_C_m"], data["trunk_H_m"])
+        c_arm_avg = (data["biceps_C_m"] + data["forearm_C_m"]) / 2
+        v_arm_one = volume_cylinder_from_circumference(c_arm_avg, data["arm_L_m"])
 
-    # Mains : cylindres (x2)
-    V_hand_one = volume_cylinder_from_circumference(data["hand_C_m"], data["hand_L_m"])
+        # Jambe : 1 cylindre (cuisse + longueur jambe proxy)
+        v_leg_one = volume_cylinder_from_circumference(data["thigh_C_m"], data["leg_L_m"])
 
-    # Bras : cylindres (x2) — moyenne biceps/avant-bras
-    C_arm_avg = (data["biceps_C_m"] + data["forearm_C_m"]) / 2
-    V_arm_one = volume_cylinder_from_circumference(C_arm_avg, data["arm_L_m"])
+        v_foot_one = volume_cylinder_from_circumference(data["foot_C_m"], data["foot_L_m"])
+    except ValueError as e:
+        print(f"Erreur: mesure invalide: {e}")
+        return
 
-    # Jambes : cylindres (x2)
-    V_leg_one = volume_cylinder_from_circumference(data["thigh_C_m"], data["leg_L_m"])
-
-    # Pieds : cylindres (x2)
-    V_foot_one = volume_cylinder_from_circumference(data["foot_C_m"], data["foot_L_m"])
-
-    # Volume total
-    V_total = (
-        V_trunk
-        + V_head
-        + 2 * V_arm_one
-        + 2 * V_hand_one
-        + 2 * V_leg_one
-        + 2 * V_foot_one
+    v_total = (
+        v_trunk
+        + v_head
+        + 2 * v_arm_one
+        + 2 * v_hand_one
+        + 2 * v_leg_one
+        + 2 * v_foot_one
     )
 
-    # ----------------------------
-    # Physique : poids, poussée, apparent
-    # ----------------------------
+    # Physique
+    weight_n = m_kg * g
+    buoyant_force_n = rho * g * v_total
+    apparent_weight_n = weight_n - buoyant_force_n
+    density_kg_m3 = m_kg / v_total
+    apparent_mass_kg = apparent_weight_n / g
 
-    P = m_kg * g                    # N
-    F_A = rho * g * V_total         # N (V_immergé ≈ V_total)
-    P_app = P - F_A                 # N
-    rho_obj = m_kg / V_total        # kg/m³
-    m_app = P_app / g               # kg
+    print("--- :) Résultats  :) ---")
+    print(f"Volume total V_total = {v_total:.6f} m³")
+    print(f"Densité moyenne rho_obj = {density_kg_m3:.2f} kg/m³")
+    print(f"Poids P = {weight_n:.2f} N")
+    print(f"Poussée F_A = {buoyant_force_n:.2f} N")
+    print(f"Poids apparent P_app = {apparent_weight_n:.2f} N")
+    print(f"Masse apparente équivalente = {apparent_mass_kg:.2f} kg")
 
-    # ----------------------------
-    # Affichage
-    # ----------------------------
-
-    print("--- Volumes par segment (m³) ---")
-    print(f"V_trunk      = {V_trunk:.6f}")
-    print(f"V_head       = {V_head:.6f}")
-    print(f"V_arm_one    = {V_arm_one:.6f}  (x2 => {2*V_arm_one:.6f})")
-    print(f"V_hand_one   = {V_hand_one:.6f} (x2 => {2*V_hand_one:.6f})")
-    print(f"V_leg_one    = {V_leg_one:.6f}  (x2 => {2*V_leg_one:.6f})")
-    print(f"V_foot_one   = {V_foot_one:.6f} (x2 => {2*V_foot_one:.6f})")
-
-    print("\n--- Résultats ---")
-    print(f"Volume total V_total = {V_total:.6f} m³")
-    print(f"Densité moyenne rho_obj = {rho_obj:.2f} kg/m³")
-    print(f"Poids P = {P:.2f} N")
-    print(f"Poussée F_A = {F_A:.2f} N")
-    print(f"Poids apparent P_app = {P_app:.2f} N")
-    print(f"Masse apparente équivalente = {m_app:.2f} kg")
-
-    # Verdict (via poids apparent)
-    if P_app > 0:
+    if apparent_weight_n > 0:
         print("Verdict : tendance à COULER (P > F_A).")
-    elif P_app < 0:
+    elif apparent_weight_n < 0:
         print("Verdict : tendance à FLOTTER (F_A > P).")
     else:
         print("Verdict : équilibre (P ≈ F_A).")
@@ -242,3 +152,13 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def main():
+    data = read_one_person_csv("one_person_for_python.csv")
+
+    # test
+    print("Masse (kg) =", data["m_kg"])
+    print("Tour de taille (m) =", data["trunk_C_m"])
+
+  
+
